@@ -4,9 +4,18 @@ export class CanvasService {
     private animationFrameId: number | null = null;
     private isRunning = false;
     private lastTimestamp = 0;
+    private lastDeltaMs = 0;
     private pixelRatio = window.devicePixelRatio || 1;
     private resizeObserver: ResizeObserver | null = null;
     private containerElement: HTMLElement | null = null;
+    private renderCallback: ((ctx: CanvasRenderContext) => void) | null = null;
+
+    // pointer handlers
+    private pointerHandlers: Partial<CanvasPointerHandlers> = {};
+    private boundPointerDown?: (ev: PointerEvent) => void;
+    private boundPointerUp?: (ev: PointerEvent) => void;
+    private boundPointerMove?: (ev: PointerEvent) => void;
+    private boundPointerLeave?: (ev: PointerEvent) => void;
 
     // debug info
     private lastRenderMs = 0;
@@ -33,6 +42,8 @@ export class CanvasService {
         this.observeResize();
 
         window.addEventListener('resize', this.handleWindowResize);
+
+        this.addPointerListeners();
     }
 
     detach() {
@@ -42,6 +53,7 @@ export class CanvasService {
             this.resizeObserver = null;
         }
         window.removeEventListener('resize', this.handleWindowResize);
+        this.removePointerListeners();
         this.ctx = null;
         this.canvas = null;
         this.containerElement = null;
@@ -55,6 +67,7 @@ export class CanvasService {
             if (!this.isRunning) return;
             const deltaMs = timestamp - this.lastTimestamp;
             this.lastTimestamp = timestamp;
+            this.lastDeltaMs = deltaMs;
 
             const renderStart = performance.now();
             this.render();
@@ -126,6 +139,17 @@ export class CanvasService {
 
         ctx.clearRect(0, 0, width, height);
 
+        if (this.renderCallback) {
+            this.renderCallback({
+                ctx,
+                width,
+                height,
+                dpr: this.pixelRatio,
+                timestamp: this.lastTimestamp,
+                deltaMs: this.lastDeltaMs,
+            });
+        }
+
         // debug info
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
@@ -133,6 +157,75 @@ export class CanvasService {
         ctx.fillText(`Size: ${Math.round(width)}x${Math.round(height)} CSS px`, 12, 36);
         ctx.fillText(`FPS: ${this.smoothedFps.toFixed(1)}`, 12, 54);
         ctx.fillText(`Render: ${this.lastRenderMs.toFixed(2)} ms`, 12, 72);
+    }
+
+    // Public API
+    setRenderCallback(cb: ((ctx: CanvasRenderContext) => void) | null): void {
+        this.renderCallback = cb ?? null;
+    }
+
+    setPointerHandlers(handlers: Partial<CanvasPointerHandlers> | null): void {
+        this.pointerHandlers = handlers ?? {};
+    }
+
+    getSize(): { width: number; height: number; dpr: number } {
+        if (!this.canvas) {
+            return { width: 0, height: 0, dpr: window.devicePixelRatio || 1 };
+        }
+        return { width: this.canvas.width / this.pixelRatio, height: this.canvas.height / this.pixelRatio, dpr: this.pixelRatio };
+    }
+
+    // Private helpers
+    private addPointerListeners(): void {
+        const canvas = this.canvas;
+        if (!canvas) return;
+
+        const toLocal = (ev: PointerEvent): CanvasPointerEvent => {
+            const rect = canvas.getBoundingClientRect();
+            const x = ev.clientX - rect.left;
+            const y = ev.clientY - rect.top;
+            return {
+                x,
+                y,
+                isPrimary: ev.isPrimary,
+                pointerId: ev.pointerId,
+                button: typeof ev.button === 'number' ? ev.button : undefined,
+                originalEvent: ev,
+            };
+        };
+
+        this.boundPointerDown = (ev: PointerEvent) => {
+            this.pointerHandlers.onDown?.(toLocal(ev));
+        };
+        this.boundPointerUp = (ev: PointerEvent) => {
+            this.pointerHandlers.onUp?.(toLocal(ev));
+        };
+        this.boundPointerMove = (ev: PointerEvent) => {
+            this.pointerHandlers.onMove?.(toLocal(ev));
+        };
+        this.boundPointerLeave = (ev: PointerEvent) => {
+            this.pointerHandlers.onLeave?.(toLocal(ev));
+        };
+
+        canvas.addEventListener('pointerdown', this.boundPointerDown, { passive: true });
+        canvas.addEventListener('pointerup', this.boundPointerUp, { passive: true });
+        canvas.addEventListener('pointermove', this.boundPointerMove, { passive: true });
+        canvas.addEventListener('pointerleave', this.boundPointerLeave, { passive: true });
+        canvas.addEventListener('pointercancel', this.boundPointerLeave, { passive: true });
+    }
+
+    private removePointerListeners(): void {
+        const canvas = this.canvas;
+        if (!canvas) return;
+        if (this.boundPointerDown) canvas.removeEventListener('pointerdown', this.boundPointerDown);
+        if (this.boundPointerUp) canvas.removeEventListener('pointerup', this.boundPointerUp);
+        if (this.boundPointerMove) canvas.removeEventListener('pointermove', this.boundPointerMove);
+        if (this.boundPointerLeave) canvas.removeEventListener('pointerleave', this.boundPointerLeave);
+        if (this.boundPointerLeave) canvas.removeEventListener('pointercancel', this.boundPointerLeave);
+        this.boundPointerDown = undefined;
+        this.boundPointerUp = undefined;
+        this.boundPointerMove = undefined;
+        this.boundPointerLeave = undefined;
     }
 }
 
@@ -158,3 +251,6 @@ export function getCanvasService(): CanvasService {
     }
     return singletonService;
 }
+
+import type { CanvasRenderContext, CanvasPointerEvent, CanvasPointerHandlers } from '@/types/canvas';
+
