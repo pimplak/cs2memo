@@ -8,6 +8,7 @@ export type MemoryTile = {
 export type MemoryGameConfig = {
     rows: number;
     cols: number;
+    seed?: string | number;
 };
 
 export type MemoryGamePublicState = {
@@ -17,6 +18,7 @@ export type MemoryGamePublicState = {
     isInputLocked: boolean;
     movesCount: number;
     isCompleted: boolean;
+    seed?: string | number;
 };
 
 

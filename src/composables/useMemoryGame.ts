@@ -1,18 +1,10 @@
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import type { MemoryGameConfig, MemoryGamePublicState } from '@/types/memory';
+import { createRng, createPairIds } from '@/services/SeedGenerator';
 
-function createShuffledPairIds(totalTiles: number): number[] {
-    const pairCount = Math.floor(totalTiles / 2);
-    const ids: number[] = [];
-    for (let i = 0; i < pairCount; i++) {
-        ids.push(i, i);
-    }
-    // Fisher-Yates shuffle
-    for (let i = ids.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [ids[i], ids[j]] = [ids[j], ids[i]];
-    }
-    return ids;
+function createShuffledPairIds(totalTiles: number, seed?: string | number): number[] {
+    const rng = createRng(seed);
+    return createPairIds(totalTiles, rng);
 }
 
 export function useMemoryGame(initialConfig: MemoryGameConfig) {
@@ -23,6 +15,7 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
         isInputLocked: false,
         movesCount: 0,
         isCompleted: false,
+        seed: initialConfig.seed,
     });
 
     const firstRevealedIndex = ref<number | null>(null);
@@ -31,6 +24,7 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
     function newGame(config?: Partial<MemoryGameConfig>): void {
         const rows = config?.rows ?? state.rows;
         const cols = config?.cols ?? state.cols;
+        const seed = config?.seed ?? state.seed;
         const totalTiles = rows * cols;
         if (totalTiles % 2 !== 0) {
             throw new Error('Total number of tiles must be even');
@@ -38,6 +32,7 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
 
         state.rows = rows;
         state.cols = cols;
+        state.seed = seed;
         state.isInputLocked = false;
         state.movesCount = 0;
         state.isCompleted = false;
@@ -47,7 +42,7 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
             compareTimeoutHandle.value = null;
         }
 
-        const pairIds = createShuffledPairIds(totalTiles);
+        const pairIds = createShuffledPairIds(totalTiles, seed);
         state.tiles = pairIds.map((pairId, index) => ({
             id: index,
             pairId,
