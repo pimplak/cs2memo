@@ -18,6 +18,8 @@ export type MemoryGamePublicState = {
     isInputLocked: boolean;
     movesCount: number;
     isCompleted: boolean;
+    elapsedMs: number;
+    isPaused: boolean;
     seed?: string | number;
 };
 

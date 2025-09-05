@@ -1,10 +1,21 @@
 <template>
   <div ref="containerRef" class="canvas-container">
     <canvas ref="canvasRef" class="game-canvas"></canvas>
+    <div class="hud">
+      <div class="hud-left">
+        <span class="hud-item">Moves: {{ state.movesCount }}</span>
+        <span class="hud-item">Time: {{ formattedTime }}</span>
+      </div>
+      <div class="hud-right">
+        <button class="hud-button" @click="togglePause">{{ state.isPaused ? 'Resume' : 'Pause' }}</button>
+        <button class="hud-button" @click="handleNewGame">New Game</button>
+      </div>
+    </div>
     <div v-if="state.isCompleted" class="win-overlay">
       <div class="win-card">
         <h2>Great job!</h2>
         <p>Moves: {{ state.movesCount }}</p>
+        <p>Time: {{ formattedTime }}</p>
         <button class="win-button" @click="handleNewGame">New Game</button>
       </div>
     </div>
@@ -12,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watchEffect } from 'vue';
+import { ref, watchEffect, computed } from 'vue';
 import { useCanvasRenderer } from '@/composables/useCanvasRenderer';
 import { useMemoryGame } from '@/composables/useMemoryGame';
 import { computeGridLayout, hitTestTile } from '@/utils/layout';
@@ -23,7 +34,7 @@ const props = defineProps<{ rows: number; cols: number }>();
 const { containerRef, canvasRef, renderCallback, pointerHandlers } = useCanvasRenderer();
 
 // init with provided difficulty
-const { state, revealTileByIndex, newGame } = useMemoryGame({ rows: props.rows, cols: props.cols });
+const { state, revealTileByIndex, newGame, tickTimer, resumeTimer, togglePause } = useMemoryGame({ rows: props.rows, cols: props.cols });
 
 const rectsRef = ref<TileRect[]>([]);
 const flipProgress = ref<number[]>([]); // 0 = back, 1 = front
@@ -110,12 +121,16 @@ function draw(ctx: CanvasRenderContext) {
 }
 
 renderCallback.value = (ctx: CanvasRenderContext) => {
+  tickTimer(ctx.deltaMs);
   draw(ctx);
 };
 
 const handlers: Partial<CanvasPointerHandlers> = {
   onDown: (e) => {
     if (state.isInputLocked || state.isCompleted) return;
+    if (state.isPaused && !state.isCompleted) {
+      resumeTimer();
+    }
     const idx = hitTestTile(rectsRef.value, e.x, e.y);
     if (idx >= 0) {
       revealTileByIndex(idx);
@@ -136,6 +151,15 @@ watchEffect(() => {
 function handleNewGame() {
   newGame();
 }
+
+const formattedTime = computed(() => {
+  const totalSeconds = Math.floor(state.elapsedMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(seconds).padStart(2, '0');
+  return `${mm}:${ss}`;
+});
 
 // React to difficulty changes via props
 watchEffect(() => {
@@ -159,6 +183,52 @@ watchEffect(() => {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+}
+
+.hud-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-item {
+  opacity: 0.95;
+}
+
+.hud-button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hud-button:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .win-overlay {
