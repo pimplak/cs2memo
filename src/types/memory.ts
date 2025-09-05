@@ -1,8 +1,11 @@
+import type { CS2Rarity } from '@/types/cs2';
 export type MemoryTile = {
     id: number;
     pairId: number;
     isRevealed: boolean;
     isMatched: boolean;
+    itemId: string;
+    rarity: CS2Rarity;
 };
 
 export type MemoryGameConfig = {

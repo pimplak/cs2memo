@@ -1,10 +1,23 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import type { MemoryGameConfig, MemoryGamePublicState } from '@/types/memory';
-import { createRng, createPairIds } from '@/services/SeedGenerator';
+import { createRng, createPairIds, seededShuffle } from '@/services/SeedGenerator';
+import { CS2_ITEMS } from '@/data/cs2Catalog';
+import type { CS2Item, CS2Rarity } from '@/types/cs2';
 
 function createShuffledPairIds(totalTiles: number, seed?: string | number): number[] {
     const rng = createRng(seed);
     return createPairIds(totalTiles, rng);
+}
+
+function buildItemAssignment(pairCount: number, seed?: string | number): CS2Item[] {
+    const rng = createRng(seed);
+    const items = seededShuffle(CS2_ITEMS, rng);
+    // Ensure enough items for unique pairs; if not, wrap around
+    const assigned: CS2Item[] = [];
+    for (let i = 0; i < pairCount; i++) {
+        assigned.push(items[i % items.length]);
+    }
+    return assigned;
 }
 
 export function useMemoryGame(initialConfig: MemoryGameConfig) {
@@ -49,12 +62,19 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
         }
 
         const pairIds = createShuffledPairIds(totalTiles, seed);
-        state.tiles = pairIds.map((pairId, index) => ({
-            id: index,
-            pairId,
-            isRevealed: false,
-            isMatched: false,
-        }));
+        const pairCount = Math.floor(totalTiles / 2);
+        const itemsForPairs = buildItemAssignment(pairCount, seed);
+        state.tiles = pairIds.map((pairId, index) => {
+            const item = itemsForPairs[pairId]!;
+            return {
+                id: index,
+                pairId,
+                isRevealed: false,
+                isMatched: false,
+                itemId: item.id,
+                rarity: item.rarity,
+            };
+        });
         saveToStorage();
     }
 
@@ -151,7 +171,14 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
         try {
             if (typeof window === 'undefined') return;
             const snapshot = {
-                tiles: state.tiles.map((t) => ({ id: t.id, pairId: t.pairId, isRevealed: t.isRevealed, isMatched: t.isMatched })),
+                tiles: state.tiles.map((t) => ({
+                    id: t.id,
+                    pairId: t.pairId,
+                    isRevealed: t.isRevealed,
+                    isMatched: t.isMatched,
+                    itemId: t.itemId,
+                    rarity: t.rarity,
+                })),
                 rows: state.rows,
                 cols: state.cols,
                 isInputLocked: false, // do not persist lock state
@@ -172,7 +199,9 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
             if (typeof window === 'undefined') return false;
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return false;
-            const saved = JSON.parse(raw) as Partial<MemoryGamePublicState> & { tiles?: { id: number; pairId: number; isRevealed: boolean; isMatched: boolean }[] };
+            const saved = JSON.parse(raw) as Partial<MemoryGamePublicState> & {
+                tiles?: { id: number; pairId: number; isRevealed: boolean; isMatched: boolean; itemId?: string; rarity?: CS2Rarity }[];
+            };
             if (!saved || typeof saved.rows !== 'number' || typeof saved.cols !== 'number') return false;
             // Only restore if the saved grid matches the requested one (to avoid fighting with props-driven size)
             if (saved.rows !== initialConfig.rows || saved.cols !== initialConfig.cols) return false;
@@ -192,12 +221,19 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
                 window.clearTimeout(compareTimeoutHandle.value);
                 compareTimeoutHandle.value = null;
             }
-            state.tiles = saved.tiles.map((t, index) => ({
-                id: index,
-                pairId: t.pairId,
-                isRevealed: !!t.isRevealed,
-                isMatched: !!t.isMatched,
-            }));
+            const pairCount = Math.floor(totalTiles / 2);
+            const itemsForPairs = buildItemAssignment(pairCount, saved.seed);
+            state.tiles = saved.tiles.map((t, index) => {
+                const item = itemsForPairs[t.pairId]!;
+                return {
+                    id: index,
+                    pairId: t.pairId,
+                    isRevealed: !!t.isRevealed,
+                    isMatched: !!t.isMatched,
+                    itemId: t.itemId ?? item.id,
+                    rarity: t.rarity ?? item.rarity,
+                };
+            });
 
             const nonMatchedRevealed: number[] = [];
             for (let i = 0; i < state.tiles.length; i++) {
@@ -221,7 +257,14 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
     // Persist on changes (deep watch)
     watch(
         () => ({
-            tiles: state.tiles.map((t) => ({ id: t.id, pairId: t.pairId, isRevealed: t.isRevealed, isMatched: t.isMatched })),
+            tiles: state.tiles.map((t) => ({
+                id: t.id,
+                pairId: t.pairId,
+                isRevealed: t.isRevealed,
+                isMatched: t.isMatched,
+                itemId: t.itemId,
+                rarity: t.rarity,
+            })),
             rows: state.rows,
             cols: state.cols,
             movesCount: state.movesCount,

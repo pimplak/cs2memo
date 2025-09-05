@@ -27,6 +27,9 @@ import { ref, watchEffect, computed } from 'vue';
 import { useCanvasRenderer } from '@/composables/useCanvasRenderer';
 import { useMemoryGame } from '@/composables/useMemoryGame';
 import { computeGridLayout, hitTestTile } from '@/utils/layout';
+import * as colors from '@/utils/colors';
+import { getImageLoader } from '@/services/ImageLoader';
+import { getItemById } from '@/data/cs2Catalog';
 import type { CanvasRenderContext, CanvasPointerHandlers } from '@/types/canvas';
 import type { TileRect } from '@/types/layout';
 
@@ -39,6 +42,10 @@ const { state, revealTileByIndex, newGame, tickTimer, resumeTimer, togglePause }
 const rectsRef = ref<TileRect[]>([]);
 const flipProgress = ref<number[]>([]); // 0 = back, 1 = front
 const FLIP_DURATION_MS = 260;
+
+// Image cache for loaded CS2 item images
+const imageCache = ref<Map<string, HTMLImageElement | null>>(new Map());
+const loader = getImageLoader();
 
 function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -98,10 +105,15 @@ function draw(ctx: CanvasRenderContext) {
     g.translate(r.x + r.width / 2, r.y + r.height / 2);
     g.scale(scaleX, 1);
 
-    if (tile.isMatched) {
-      g.fillStyle = '#2ecc71';
-    } else if (showFront) {
-      g.fillStyle = '#3498db';
+    if (showFront || tile.isMatched) {
+      g.fillStyle = colors.createRarityGradient(
+        g,
+        -r.width / 2,
+        -r.height / 2,
+        r.width,
+        r.height,
+        tile.rarity
+      );
     } else {
       g.fillStyle = '#7f8c8d';
     }
@@ -111,9 +123,32 @@ function draw(ctx: CanvasRenderContext) {
     g.lineWidth = 1;
     g.strokeRect(-r.width / 2 + 0.5, -r.height / 2 + 0.5, r.width - 1, r.height - 1);
 
+    if (tile.isMatched) {
+      g.strokeStyle = 'rgba(46, 204, 113, 0.9)';
+      g.lineWidth = 2;
+      g.strokeRect(-r.width / 2 + 1, -r.height / 2 + 1, r.width - 2, r.height - 2);
+    }
+
     if (showFront) {
-      g.fillStyle = 'white';
-      g.fillText(String(tile.pairId), 0, 0);
+      // Draw item image if available, otherwise fallback to text
+      const cachedImage = imageCache.value.get(tile.itemId);
+      if (cachedImage) {
+        const imgSize = Math.min(r.width * 0.8, r.height * 0.8);
+        g.drawImage(
+          cachedImage,
+          -imgSize / 2,
+          -imgSize / 2,
+          imgSize,
+          imgSize
+        );
+      } else {
+        // Fallback: display item name or pairId
+        g.fillStyle = 'white';
+        const item = getItemById(tile.itemId);
+        const text = item ? item.name.split(' | ')[0] : String(tile.pairId);
+        g.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        g.fillText(text, 0, 0);
+      }
     }
 
     g.restore();
@@ -167,6 +202,23 @@ watchEffect(() => {
   const c = props.cols;
   if (r > 0 && c > 0 && (r !== state.rows || c !== state.cols)) {
     newGame({ rows: r, cols: c });
+  }
+});
+
+// Load images for current tiles when tiles change
+watchEffect(() => {
+  const uniqueItemIds = new Set(state.tiles.map(t => t.itemId));
+  for (const itemId of uniqueItemIds) {
+    if (!imageCache.value.has(itemId)) {
+      const item = getItemById(itemId);
+      if (item) {
+        loader.load(item.imageWebp, item.imagePng).then(result => {
+          imageCache.value.set(itemId, result.image);
+        }).catch(() => {
+          imageCache.value.set(itemId, null);
+        });
+      }
+    }
   }
 });
 </script>
