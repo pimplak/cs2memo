@@ -70,6 +70,21 @@ function updateAnimations(deltaMs: number) {
   }
 }
 
+//parallax 
+const pointerRef = ref<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
+const smoothPointerRef = ref<{ x: number; y: number }>({ x: 0, y: 0 });
+const parallaxStrengthRef = ref<number>(0);
+
+function updateParallax(deltaMs: number) {
+  const alpha = 1 - Math.exp(-deltaMs / 90);
+  const targetX = pointerRef.value.x;
+  const targetY = pointerRef.value.y;
+  smoothPointerRef.value.x += (targetX - smoothPointerRef.value.x) * alpha;
+  smoothPointerRef.value.y += (targetY - smoothPointerRef.value.y) * alpha;
+  const targetStrength = pointerRef.value.active ? 1 : 0;
+  parallaxStrengthRef.value += (targetStrength - parallaxStrengthRef.value) * alpha;
+}
+
 function draw(ctx: CanvasRenderContext) {
   const { ctx: g, width, height, deltaMs } = ctx;
 
@@ -77,6 +92,7 @@ function draw(ctx: CanvasRenderContext) {
   rectsRef.value = layout.rects;
   syncAnimArrays();
   updateAnimations(deltaMs);
+  updateParallax(deltaMs);
 
   // background board tint
   g.fillStyle = 'rgba(255,255,255,0.04)';
@@ -96,10 +112,28 @@ function draw(ctx: CanvasRenderContext) {
     const scaleX = Math.cos(theta);
     const showFront = progress >= 0.5;
 
+    const cx = r.x + r.width / 2;
+    const cy = r.y + r.height / 2;
+    const dx = (smoothPointerRef.value.x - cx) / (r.width / 2);
+    const dy = (smoothPointerRef.value.y - cy) / (r.height / 2);
+    const ndx = Math.max(-1, Math.min(1, dx));
+    const ndy = Math.max(-1, Math.min(1, dy));
+    const intensity = parallaxStrengthRef.value;
+    const baseSize = Math.min(r.width, r.height);
+    const maxBg = baseSize * 0.008 * intensity; // very subtle background shift
+    const maxImg = baseSize * 0.012 * intensity; // very subtle foreground shift
+    const offsetBgX = -ndx * maxBg;
+    const offsetBgY = -ndy * maxBg;
+    const offsetImgX = ndx * maxImg;
+    const offsetImgY = ndy * maxImg;
+
     g.save();
     g.translate(r.x + r.width / 2, r.y + r.height / 2);
     g.scale(scaleX, 1);
 
+    // Background layer (with subtle parallax)
+    g.save();
+    g.translate(offsetBgX, offsetBgY);
     if (showFront || tile.isMatched) {
       g.fillStyle = colors.createRarityGradient(
         g,
@@ -113,6 +147,7 @@ function draw(ctx: CanvasRenderContext) {
       g.fillStyle = '#7f8c8d';
     }
     g.fillRect(-r.width / 2, -r.height / 2, r.width, r.height);
+    g.restore();
 
     g.strokeStyle = 'rgba(255,255,255,0.25)';
     g.lineWidth = 1;
@@ -129,6 +164,10 @@ function draw(ctx: CanvasRenderContext) {
       const cachedImage = imageCache.value.get(tile.itemId);
       if (cachedImage) {
         const imgSize = Math.min(r.width * 0.8, r.height * 0.8);
+        g.save();
+        if (scaleX < 0) g.scale(-1, 1);
+        const tx = scaleX < 0 ? -offsetImgX : offsetImgX;
+        g.translate(tx, offsetImgY);
         g.drawImage(
           cachedImage,
           -imgSize / 2,
@@ -136,13 +175,19 @@ function draw(ctx: CanvasRenderContext) {
           imgSize,
           imgSize
         );
+        g.restore();
       } else {
         // Fallback: display item name or pairId
         g.fillStyle = 'white';
         const item = getItemById(tile.itemId);
         const text = item ? item.name.split(' | ')[0] : String(tile.pairId);
         g.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        g.save();
+        if (scaleX < 0) g.scale(-1, 1);
+        const tx = scaleX < 0 ? -offsetImgX : offsetImgX;
+        g.translate(tx, offsetImgY);
         g.fillText(text, 0, 0);
+        g.restore();
       }
     }
 
@@ -163,10 +208,21 @@ const handlers: Partial<CanvasPointerHandlers> = {
     }
     AudioService.resume();
     AudioService.playFlip();
+    pointerRef.value.x = e.x;
+    pointerRef.value.y = e.y;
+    pointerRef.value.active = true;
     const idx = hitTestTile(rectsRef.value, e.x, e.y);
     if (idx >= 0) {
       revealTileByIndex(idx);
     }
+  },
+  onMove: (e) => {
+    pointerRef.value.x = e.x;
+    pointerRef.value.y = e.y;
+    pointerRef.value.active = true;
+  },
+  onLeave: () => {
+    pointerRef.value.active = false;
   },
 };
 pointerHandlers.value = handlers;
