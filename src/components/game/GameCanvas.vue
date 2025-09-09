@@ -24,14 +24,14 @@ import type { CanvasRenderContext, CanvasPointerHandlers } from '@/types/canvas'
 import type { TileRect } from '@/types/layout';
 import { AudioService } from '@/services/AudioService';
 
-const props = defineProps<{ rows: number; cols: number }>();
+const props = defineProps<{ rows: number; cols: number; seed?: string | number }>();
 const emit = defineEmits<{
   (e: 'hud-update', payload: { moves: number; time: string; paused: boolean; completed: boolean }): void
 }>();
 const { containerRef, canvasRef, renderCallback, pointerHandlers } = useCanvasRenderer();
 
-// init with provided difficulty
-const { state, revealTileByIndex, newGame, tickTimer, resumeTimer, togglePause } = useMemoryGame({ rows: props.rows, cols: props.cols });
+// init with provided difficulty and optional seed
+const { state, revealTileByIndex, newGame, tickTimer, resumeTimer, togglePause } = useMemoryGame({ rows: props.rows, cols: props.cols, seed: props.seed });
 
 const rectsRef = ref<TileRect[]>([]);
 const flipProgress = ref<number[]>([]); // 0 = back, 1 = front
@@ -255,7 +255,17 @@ watchEffect(() => {
   const r = props.rows;
   const c = props.cols;
   if (r > 0 && c > 0 && (r !== state.rows || c !== state.cols)) {
-    newGame({ rows: r, cols: c });
+    newGame({ rows: r, cols: c, seed: props.seed });
+  }
+});
+
+// React to seed changes
+watchEffect(() => {
+  const r = props.rows;
+  const c = props.cols;
+  const s = props.seed;
+  if (r > 0 && c > 0 && s !== state.seed) {
+    newGame({ rows: r, cols: c, seed: s });
   }
 });
 

@@ -56,7 +56,7 @@
       </div>
       <div class="game-content fade-in">
         <div class="canvas-wrapper cs-card">
-          <GameCanvas ref="canvasApi" :rows="rows" :cols="cols" @hud-update="onHudUpdate" />
+          <GameCanvas ref="canvasApi" :rows="rows" :cols="cols" :seed="seed" @hud-update="onHudUpdate" />
         </div>
       </div>
     </div>
@@ -96,6 +96,18 @@ const cols = computed(() => {
   }
   return difficultyStore.gridDimensions.cols;
 });
+
+function parseSeed(value: unknown): string | number | undefined {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  if (trimmed.length === 0) return undefined;
+  const asNumber = Number(trimmed);
+  if (Number.isFinite(asNumber) && String(asNumber) === trimmed) return asNumber;
+  return trimmed;
+}
+
+const seed = computed<string | number | undefined>(() => parseSeed(route.query.seed));
 
 const canvasApi = ref<InstanceType<typeof GameCanvas> | null>(null);
 const hudMoves = ref(0);
