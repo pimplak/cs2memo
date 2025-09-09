@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { useGameDifficultyStore } from '@/stores/gameDifficulty';
 import GameCanvas from '@/components/game/GameCanvas.vue';
 
 defineOptions({
@@ -25,14 +26,27 @@ defineOptions({
 });
 
 const route = useRoute();
+const difficultyStore = useGameDifficultyStore();
+
 const parsePositiveIntQuery = (value: unknown, fallback: number): number => {
   const raw = typeof value === 'string' ? value : Array.isArray(value) ? value[0] ?? '0' : '0';
   const n = parseInt(raw as string, 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
-const rows = computed(() => parsePositiveIntQuery(route.query.rows, 4));
-const cols = computed(() => parsePositiveIntQuery(route.query.cols, 4));
+const rows = computed(() => {
+  if (route.query.rows && route.query.cols) {
+    return parsePositiveIntQuery(route.query.rows, 4);
+  }
+  return difficultyStore.gridDimensions.rows;
+});
+
+const cols = computed(() => {
+  if (route.query.rows && route.query.cols) {
+    return parsePositiveIntQuery(route.query.cols, 4);
+  }
+  return difficultyStore.gridDimensions.cols;
+});
 </script>
 
 <style scoped>

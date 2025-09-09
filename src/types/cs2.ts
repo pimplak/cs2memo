@@ -25,6 +25,7 @@ export type RarityString = `${CS2Rarity}`;
 export type CS2ItemType = 'weapon' | 'knife' | 'glove' | 'grenade' | 'equipment';
 
 export interface CS2Item {
+    id: string;
     name: string;
     type: CS2ItemType;
     rarity: CS2Rarity;

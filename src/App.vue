@@ -5,13 +5,13 @@
 <script setup lang="ts"></script>
 
 <style>
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-  #app {
-    min-height: 100vh;
-  }
+#app {
+  min-height: 100vh;
+}
 </style>

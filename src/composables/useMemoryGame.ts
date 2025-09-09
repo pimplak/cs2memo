@@ -3,6 +3,8 @@ import type { MemoryGameConfig, MemoryGamePublicState } from '@/types/memory';
 import { createRng, createPairIds, seededShuffle } from '@/services/SeedGenerator';
 import { CS2_ITEMS } from '@/data/cs2Catalog';
 import type { CS2Item, CS2Rarity } from '@/types/cs2';
+import { useGameHistoryStore } from '@/stores/gameHistory';
+import { useGameDifficultyStore } from '@/stores/gameDifficulty';
 
 function createShuffledPairIds(totalTiles: number, seed?: string | number): number[] {
     const rng = createRng(seed);
@@ -22,6 +24,8 @@ function buildItemAssignment(pairCount: number, seed?: string | number): CS2Item
 
 export function useMemoryGame(initialConfig: MemoryGameConfig) {
     const STORAGE_KEY = 'cs2memo:game';
+    const gameHistoryStore = useGameHistoryStore();
+    const difficultyStore = useGameDifficultyStore();
 
     const state = reactive<MemoryGamePublicState>({
         tiles: [],
@@ -39,8 +43,18 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
     const compareTimeoutHandle = ref<number | null>(null);
 
     function newGame(config?: Partial<MemoryGameConfig>): void {
-        const rows = config?.rows ?? state.rows;
-        const cols = config?.cols ?? state.cols;
+        let rows: number, cols: number;
+
+        if (config?.rows && config?.cols) {
+            rows = config.rows;
+            cols = config.cols;
+            difficultyStore.setDifficultyFromGrid(rows, cols);
+        } else {
+            const difficultyInfo = difficultyStore.difficultyInfo;
+            rows = difficultyInfo.rows;
+            cols = difficultyInfo.cols;
+        }
+
         const seed = config?.seed ?? state.seed;
         const totalTiles = rows * cols;
         if (totalTiles % 2 !== 0) {
@@ -116,6 +130,7 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
             if (allMatched) {
                 state.isCompleted = true;
                 pauseTimer();
+                saveGameRecord();
             }
         }, 600); // brief display period for UX; animation handled elsewhere
     }
@@ -156,6 +171,18 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
 
     function resetTimer(): void {
         state.elapsedMs = 0;
+    }
+
+    function saveGameRecord(): void {
+        if (!state.isCompleted) return;
+
+        const difficulty = difficultyStore.currentDifficulty;
+        gameHistoryStore.addGameRecord({
+            movesCount: state.movesCount,
+            elapsedMs: state.elapsedMs,
+            difficulty,
+            seed: state.seed
+        });
     }
 
     const tileCount = computed(() => state.rows * state.cols);
@@ -203,14 +230,18 @@ export function useMemoryGame(initialConfig: MemoryGameConfig) {
                 tiles?: { id: number; pairId: number; isRevealed: boolean; isMatched: boolean; itemId?: string; rarity?: CS2Rarity }[];
             };
             if (!saved || typeof saved.rows !== 'number' || typeof saved.cols !== 'number') return false;
-            // Only restore if the saved grid matches the requested one (to avoid fighting with props-driven size)
-            if (saved.rows !== initialConfig.rows || saved.cols !== initialConfig.cols) return false;
+
+            if (initialConfig.rows && initialConfig.cols) {
+                if (saved.rows !== initialConfig.rows || saved.cols !== initialConfig.cols) return false;
+            }
             const totalTiles = saved.rows * saved.cols;
             if (!Array.isArray(saved.tiles) || saved.tiles.length !== totalTiles) return false;
 
             state.rows = saved.rows;
             state.cols = saved.cols;
             state.seed = saved.seed;
+
+            difficultyStore.setDifficultyFromGrid(saved.rows, saved.cols);
             state.isInputLocked = false;
             state.movesCount = typeof saved.movesCount === 'number' ? saved.movesCount : 0;
             state.isCompleted = !!saved.isCompleted;

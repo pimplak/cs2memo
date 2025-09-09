@@ -1,63 +1,60 @@
 <template>
   <div class="menu">
     <h1>CS2 Memo</h1>
-    <div class="menu-controls">
-      <div class="control-row">
-        <label for="difficulty">difficulties</label>
-        <select id="difficulty" v-model="difficulty">
-          <option value="easy">Easy (4x4)</option>
-          <option value="medium">Medium (4x6)</option>
-          <option value="hard">Hard (6x6)</option>
-        </select>
-      </div>
-      <div class="control-row">
-        <label for="seed">Seed</label>
-        <input id="seed" type="text" v-model="seed" placeholder="np. cs2-2025" />
-      </div>
-    </div>
 
-    <div class="menu-buttons">
-      <button class="menu-button" @click="play">
-        <span>Play</span>
-      </button>
-      <router-link to="/history" class="menu-button">
-        <span>History</span>
-      </router-link>
+    <div class="menu-content">
+      <DifficultySelector />
+
+      <div class="menu-controls">
+        <div class="control-row">
+          <label for="seed">Seed</label>
+          <input id="seed" type="text" v-model="seed" placeholder="np. cs2-2025" />
+        </div>
+      </div>
+
+      <div class="menu-buttons">
+        <button class="menu-button primary" @click="play">
+          <span>🎮</span>
+          <span>Play</span>
+        </button>
+        <router-link to="/history" class="menu-button">
+          <span>📊</span>
+          <span>History</span>
+        </router-link>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useGameDifficultyStore } from '@/stores/gameDifficulty'
+import DifficultySelector from '@/components/game/DifficultySelector.vue'
 
 defineOptions({ name: 'MenuView' })
 
 const router = useRouter()
+const route = useRoute()
+const difficultyStore = useGameDifficultyStore()
 
-const difficulty = ref<'easy' | 'medium' | 'hard'>('easy')
 const seed = ref<string>('')
 
-const size = computed(() => {
-  switch (difficulty.value) {
-    case 'medium':
-      return { rows: 4, cols: 6 }
-    case 'hard':
-      return { rows: 6, cols: 6 }
-    case 'easy':
-    default:
-      return { rows: 4, cols: 4 }
-  }
-})
-
 function play() {
+  const queryParams: any = {}
+
+  if (seed.value) {
+    queryParams.seed = seed.value
+  }
+
+  if (route.query.rows && route.query.cols) {
+    queryParams.rows = route.query.rows
+    queryParams.cols = route.query.cols
+  }
+
   router.push({
     path: '/game',
-    query: {
-      rows: String(size.value.rows),
-      cols: String(size.value.cols),
-      seed: seed.value || undefined,
-    },
+    query: Object.keys(queryParams).length > 0 ? queryParams : undefined
   })
 }
 </script>
@@ -71,20 +68,30 @@ function play() {
   min-height: 100vh;
   background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
   color: white;
+  padding: 2rem;
 }
 
 .menu h1 {
   font-size: 3rem;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.menu-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  max-width: 800px;
+  width: 100%;
 }
 
 .menu-controls {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  width: 280px;
-  margin-bottom: 1.25rem;
+  width: 300px;
 }
 
 .control-row {
@@ -98,7 +105,6 @@ function play() {
   opacity: 0.9;
 }
 
-.control-row select,
 .control-row input {
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
@@ -107,22 +113,28 @@ function play() {
   color: white;
   outline: none;
   backdrop-filter: blur(6px);
+  font-size: 1rem;
 }
 
-.control-row select:focus,
 .control-row input:focus {
   border-color: rgba(255, 255, 255, 0.5);
+}
+
+.control-row input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .menu-buttons {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  width: 300px;
 }
 
 .menu-button {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
   padding: 1rem 2rem;
   background: rgba(255, 255, 255, 0.1);
@@ -134,6 +146,8 @@ function play() {
   font-weight: bold;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .menu-button:hover {
@@ -143,7 +157,35 @@ function play() {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
+.menu-button.primary {
+  background: rgba(0, 170, 255, 0.2);
+  border-color: rgba(0, 170, 255, 0.4);
+}
+
+.menu-button.primary:hover {
+  background: rgba(0, 170, 255, 0.3);
+  border-color: rgba(0, 170, 255, 0.6);
+  box-shadow: 0 8px 25px rgba(0, 170, 255, 0.3);
+}
+
 .menu-button span:first-child {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
+}
+
+@media (max-width: 768px) {
+  .menu {
+    padding: 1rem;
+  }
+
+  .menu h1 {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .menu-controls,
+  .menu-buttons {
+    width: 100%;
+    max-width: 300px;
+  }
 }
 </style>
