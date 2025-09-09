@@ -12,7 +12,7 @@ export const useGameHistoryStore = defineStore('gameHistory', () => {
             if (typeof window === 'undefined') return
             localStorage.setItem(STORAGE_KEY, JSON.stringify(gameHistory.value))
         } catch {
-            // i
+            // 
         }
     }
 
@@ -48,8 +48,6 @@ export const useGameHistoryStore = defineStore('gameHistory', () => {
         gameHistory.value = []
         saveToStorage()
     }
-
-    // removed export/import history API
 
     loadFromStorage()
 

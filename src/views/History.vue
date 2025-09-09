@@ -1,16 +1,19 @@
 <template>
-  <div class="history">
-    <div class="history-header">
-      <router-link to="/" class="back-button">
-        <span>←</span>
-        <span>Back</span>
-      </router-link>
-      <h1>Game History</h1>
-    </div>
+  <div class="cs-page">
+    <div class="history-container">
+      <div class="history-header">
+        <router-link to="/" class="cs-button" style="gap:0.5rem;">
+          <span class="button-accent"></span>
+          <span>←</span>
+          <span>Back</span>
+        </router-link>
+        <h1>Game History</h1>
+      </div>
 
-    <div class="history-content">
-      <div class="panel">
-        <GameHistoryList />
+      <div class="history-content">
+        <div class="panel cs-card">
+          <GameHistoryList />
+        </div>
       </div>
     </div>
   </div>
@@ -22,40 +25,17 @@ import GameHistoryList from '@/components/history/GameHistoryList.vue'
 </script>
 
 <style scoped>
-.history {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
-  color: white;
+.history-container {
+  width: 100%;
 }
 
 .history-header {
   display: flex;
   align-items: center;
-  padding: 1rem 2rem;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
+  padding: 1rem 0;
   position: sticky;
   top: 0;
   z-index: 100;
-}
-
-.back-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 5px;
-  color: white;
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-}
-
-.back-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateX(-2px);
 }
 
 .history-header h1 {
@@ -70,11 +50,7 @@ import GameHistoryList from '@/components/history/GameHistoryList.vue'
 }
 
 .panel {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
   padding: 2rem;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 @keyframes fadeIn {

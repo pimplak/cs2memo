@@ -2,25 +2,28 @@
     <div class="game-history-list">
         <div class="controls">
             <div class="filters">
-                <select v-model="selectedDifficulty" class="filter-select">
+                <select v-model="selectedDifficulty" class="filter-select cs-input" style="width:auto;">
                     <option value="">All Difficulties</option>
                     <option v-for="difficulty in difficulties" :key="difficulty" :value="difficulty">
                         {{ formatDifficulty(difficulty) }}
                     </option>
                 </select>
 
-                <select v-model="sortField" class="filter-select">
+                <select v-model="sortField" class="filter-select cs-input" style="width:auto;">
                     <option value="completedAt">Date</option>
                     <option value="movesCount">Moves</option>
                     <option value="elapsedMs">Time</option>
                     <option value="difficulty">Difficulty</option>
                 </select>
 
-                <button @click="toggleSortDirection" class="sort-button">
+                <button @click="toggleSortDirection" class="cs-button" style="padding:0.5rem 0.75rem;">
+                    <span class="button-accent"></span>
                     {{ sortDirection === 'desc' ? '↓' : '↑' }}
                 </button>
 
-                <button v-if="filteredGames.length > 0" @click="clearFilters" class="clear-button">
+                <button v-if="filteredGames.length > 0" @click="clearFilters" class="cs-button"
+                    style="padding:0.5rem 0.75rem;">
+                    <span class="button-accent"></span>
                     Clear
                 </button>
             </div>
@@ -39,7 +42,7 @@
         </div>
 
         <div v-else class="games-grid">
-            <div v-for="game in filteredGames" :key="game.id" class="game-card">
+            <div v-for="game in filteredGames" :key="game.id" class="game-card cs-card">
                 <div class="game-header">
                     <div class="difficulty-badge" :class="`difficulty-${game.difficulty}`">
                         {{ formatDifficulty(game.difficulty) }}
@@ -75,6 +78,7 @@
             </p>
         </div>
     </div>
+
 </template>
 
 <script setup lang="ts">
@@ -205,34 +209,9 @@ function getDifficultyOrder(difficulty: GameDifficulty): number {
     flex-wrap: wrap;
 }
 
-.filter-select {
-    padding: 0.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    font-size: 0.9rem;
-}
-
 .filter-select option {
-    background: #2a2a2a;
-    color: white;
-}
-
-.sort-button,
-.clear-button {
-    padding: 0.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.sort-button:hover,
-.clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--cs-bg-2);
+    color: var(--cs-text);
 }
 
 .actions {
@@ -285,10 +264,8 @@ function getDifficultyOrder(difficulty: GameDifficulty): number {
     gap: 1rem;
 }
 
+
 .game-card {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
     padding: 1rem;
     transition: all 0.2s ease;
 }

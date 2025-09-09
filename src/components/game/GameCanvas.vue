@@ -1,16 +1,6 @@
 <template>
   <div ref="containerRef" class="canvas-container">
     <canvas ref="canvasRef" class="game-canvas"></canvas>
-    <div class="hud">
-      <div class="hud-left">
-        <span class="hud-item">Moves: {{ state.movesCount }}</span>
-        <span class="hud-item">Time: {{ formattedTime }}</span>
-      </div>
-      <div class="hud-right">
-        <button class="hud-button" @click="togglePause">{{ state.isPaused ? 'Resume' : 'Pause' }}</button>
-        <button class="hud-button" @click="handleNewGame">New Game</button>
-      </div>
-    </div>
     <div v-if="state.isCompleted" class="win-overlay">
       <div class="win-card">
         <h2>Great job!</h2>
@@ -23,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watchEffect, computed } from 'vue';
+import { ref, watchEffect, computed, defineExpose, defineEmits } from 'vue';
 import { useCanvasRenderer } from '@/composables/useCanvasRenderer';
 import { useMemoryGame } from '@/composables/useMemoryGame';
 import { computeGridLayout, hitTestTile } from '@/utils/layout';
@@ -32,8 +22,12 @@ import { getImageLoader } from '@/services/ImageLoader';
 import { getItemById } from '@/data/cs2Catalog';
 import type { CanvasRenderContext, CanvasPointerHandlers } from '@/types/canvas';
 import type { TileRect } from '@/types/layout';
+import { AudioService } from '@/services/AudioService';
 
 const props = defineProps<{ rows: number; cols: number }>();
+const emit = defineEmits<{
+  (e: 'hud-update', payload: { moves: number; time: string; paused: boolean; completed: boolean }): void
+}>();
 const { containerRef, canvasRef, renderCallback, pointerHandlers } = useCanvasRenderer();
 
 // init with provided difficulty
@@ -42,6 +36,7 @@ const { state, revealTileByIndex, newGame, tickTimer, resumeTimer, togglePause }
 const rectsRef = ref<TileRect[]>([]);
 const flipProgress = ref<number[]>([]); // 0 = back, 1 = front
 const FLIP_DURATION_MS = 260;
+const prevMatchedCount = ref<number>(0);
 
 // Image cache for loaded CS2 item images
 const imageCache = ref<Map<string, HTMLImageElement | null>>(new Map());
@@ -166,6 +161,8 @@ const handlers: Partial<CanvasPointerHandlers> = {
     if (state.isPaused && !state.isCompleted) {
       resumeTimer();
     }
+    AudioService.resume();
+    AudioService.playFlip();
     const idx = hitTestTile(rectsRef.value, e.x, e.y);
     if (idx >= 0) {
       revealTileByIndex(idx);
@@ -184,6 +181,7 @@ watchEffect(() => {
 });
 
 function handleNewGame() {
+  AudioService.playNewGame();
   newGame();
 }
 
@@ -221,6 +219,43 @@ watchEffect(() => {
     }
   }
 });
+
+// Detect matches and completion for sounds
+watchEffect(() => {
+  const matchedNow = state.tiles.filter(t => t.isMatched).length;
+  if (matchedNow > prevMatchedCount.value) {
+    AudioService.playMatch();
+  }
+  prevMatchedCount.value = matchedNow;
+  if (state.isCompleted) {
+    AudioService.playWin();
+  }
+});
+
+function uiTogglePause() {
+  togglePause();
+  AudioService.playPause(state.isPaused);
+}
+
+// Emit HUD updates for parent header
+watchEffect(() => {
+  emit('hud-update', {
+    moves: state.movesCount,
+    time: formattedTime.value,
+    paused: state.isPaused,
+    completed: state.isCompleted,
+  });
+});
+
+// Expose HUD/control API to parent (Game view header)
+defineExpose({
+  movesCount: computed(() => state.movesCount),
+  formattedTime,
+  isPaused: computed(() => state.isPaused),
+  isCompleted: computed(() => state.isCompleted),
+  togglePause: uiTogglePause,
+  newGame: handleNewGame,
+});
 </script>
 
 <style scoped>
@@ -237,51 +272,6 @@ watchEffect(() => {
   display: block;
 }
 
-.hud {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: #fff;
-}
-
-.hud-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.hud-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hud-item {
-  opacity: 0.95;
-}
-
-.hud-button {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.hud-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
 
 .win-overlay {
   position: absolute;
